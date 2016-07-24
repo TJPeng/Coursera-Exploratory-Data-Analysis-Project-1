@@ -1,0 +1,114 @@
+# Load RDS
+setwd("C:/Users/Amy/Desktop/PM 2.5")
+dir()
+NEI<- readRDS('summarySCC_PM25.rds')
+
+
+# Sample data for testing
+NEIsample <- NEI[sample(nrow(NEI), size=1000, replace=F), ]
+
+# Aggregate
+Emissions <- aggregate(NEI[, 'Emissions'], by=list(NEI$year), FUN=sum)
+Emissions$PM <- round(Emissions[,2]/1000,2)
+
+# Have total emissions from PM2.5 decreased in the United States from 1999 to 2008? 
+# Using the base plotting system, make a plot showing the total PM2.5 emission from all sources 
+# for each of the years 1999, 2002, 2005, and 2008.
+png(filename='plot1.png')
+barplot(Emissions$PM, names.arg=Emissions$Group.1, 
+        main=expression('Total Emission of PM'[2.5]), xlab='Year', ylab=expression(paste('PM', ''[2.5], ' in Kilotons')))
+dev.off()
+
+
+# Have total emissions from PM2.5 decreased in the  Baltimore City, Maryland ( fips == 24510) 
+# from 1999 to 2008? Use the base plotting system to make a plot answering this question.
+png(filename='plot2.png')
+baltimore<-subset(NEI, NEI$fips==24510)           #Subset Baltimore area
+totalBaltimore<-tapply(baltimore$Emissions, INDEX=baltimore$year, sum)   #Sum emissions per year
+barplot(totalBaltimore, main="Total Emissions in Baltimore, MD by Year", xlab="Year", ylab="Emissions")
+dev.off()
+# Of the four types of sources indicated by the type (point, nonpoint, onroad, nonroad) variable, 
+# which of these four sources have seen decreases in emissions from 1999–2008 for Baltimore City? 
+# Which have seen increases in emissions from 1999–2008? Use the ggplot2 plotting system to make a plot answer this question.
+
+png(filename='plot3.png')
+library(ggplot2)
+ggplot(data=baltimore, aes(x=year, y=Emissions, fill=type)) +    
+  geom_bar(stat="identity", position="dodge") +
+  ggtitle("Baltimore, MD Emission by Type: 1999-2008")
+dev.off()
+# Across the United States, how have emissions from coal combustion-related sources changed from 1999–2008?
+# Upload a PNG file containing your plot addressing this question.
+
+
+
+png(filename='plot4.png')
+greps1<-unique(grep("coal", SCC$EI.Sector, ignore.case=TRUE, value=TRUE))  
+#Isolate instances of "coal" in SCC column EI.Sector
+
+data1<-subset(SCC, EI.Sector %in% greps1)    #Subset SCC by coal labels
+coal<-subset(NEI, SCC %in% data1$SCC)        #Subset NEI by data1 overlaps
+
+ggplot(data=coal, aes(x=year, y=Emissions, fill = type)) + 
+  geom_bar(stat="identity", position=position_dodge()) + 
+  ggtitle("U.S. Coal Combustion-Related Emissions: 1999-2008")
+dev.off()
+# Compare emissions from motor vehicle sources in Baltimore City with emissions from motor vehicle sources in Los Angeles County, 
+# California (fips == 06037). Which city has seen greater changes over time in motor vehicle emissions?
+#For purposes of this study, I have defined motor vehicles sources as highway vehicles.  Included categories #are:
+
+# - Mobile – On-road – Diesel Heavy Duty Vehicles
+# - Mobile – On-road – Diesel Light Duty Vehicles
+# - Mobile – On-road – Gasoline Heavy Duty Vehicles
+# - Mobile – On-road – Gasoline Light Duty Vehicles
+
+
+png(filename='plot5.png')
+greps2<-unique(grep("mobile", SCC$EI.Sector, ignore.case=TRUE, value=TRUE))  
+#only need greps2[1:4]
+
+Gas_Heavy<-subset(SCC, EI.Sector %in% greps2[1])  #Subset SCC by Vehicle Type
+Gas_Light<-subset(SCC, EI.Sector %in% greps2[2])
+Diesel_Light<-subset(SCC, EI.Sector %in% greps2[3])
+Diesel_Heavy<-subset(SCC, EI.Sector %in% greps2[4])
+
+gasHeavy<-subset(baltimore, SCC %in% Gas_Heavy$SCC)   #Subset Baltimore by SCC retaining vehicle type 
+gasLight<-subset(baltimore, SCC %in% Gas_Light$SCC)
+dieselLight<-subset(baltimore, SCC %in% Diesel_Light$SCC)
+dieselHeavy<-subset(baltimore, SCC %in% Diesel_Heavy$SCC)
+
+cars1<-data.frame(gasHeavy, vehicle="Gas - Heavy Duty")      #Add vehicle type column to NEI 
+cars2<-data.frame(gasLight, vehicle="Gas - Light Duty")
+cars3<-data.frame(dieselLight, vehicle="Diesel - Light Duty")
+cars4<-data.frame(dieselHeavy, vehicle="Diesel - Heavy Duty")
+cars<-rbind(cars1, cars2, cars3, cars4) 
+
+ggplot(data=cars, aes(x=year, y=Emissions, fill=vehicle)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  ggtitle("Motor Vehicle-Related Emissions in Baltimore, MD: 1999-2008")
+dev.off()
+# Compare emissions from motor vehicle sources in Baltimore City with emissions from motor vehicle sources in Los Angeles County, California (fips == “06037”). 
+# Which city has seen greater changes over time in motor vehicle emissions?
+
+png(filename='plot6.png')
+LA<-subset(NEI, NEI$fips=="06037") 
+
+LAgasHeavy<-subset(LA, SCC %in% Gas_Heavy$SCC)   #Subset Baltimore by SCC retaining vehicle type 
+LAgasLight<-subset(LA, SCC %in% Gas_Light$SCC)
+LAdieselLight<-subset(LA, SCC %in% Diesel_Light$SCC)
+LAdieselHeavy<-subset(LA, SCC %in% Diesel_Heavy$SCC)
+
+LAcars1<-data.frame(LAgasHeavy, vehicle="Gas - Heavy Duty")      #Add vehicle type column to NEI 
+LAcars2<-data.frame(LAgasLight, vehicle="Gas - Light Duty")
+LAcars3<-data.frame(LAdieselLight, vehicle="Diesel - Light Duty")
+LAcars4<-data.frame(LAdieselHeavy, vehicle="Diesel - Heavy Duty")
+carsALL<-rbind(cars, LAcars1, LAcars2, LAcars3, LAcars4) 
+carsALL$fips<-gsub("24510", "Baltimore", carsALL$fips)     #Replace fips with city names
+carsALL$fips<-gsub("06037", "Los Angeles", carsALL$fips)
+
+ggplot(data=carsALL, aes(x=year, y=Emissions, fill=vehicle)) + facet_grid(.~fips) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  ggtitle(expression(atop("Two City Motor-Vehicle Emission Comparison", 
+                          atop(italic("Baltimore, MD and Los Angeles, CA: 1999-2008")))))
+
+dev.off()
